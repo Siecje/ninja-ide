@@ -38,7 +38,7 @@ from ninja_ide.core import settings
 from ninja_ide.tools import console
 from ninja_ide.gui.ide import IDE
 from ninja_ide.gui.editor import syntax_highlighter
-from ninja_ide.gui.editor import python_syntax
+from ninja_ide.gui.editor.syntaxes import python_syntax
 #from ninja_ide.tools.completion import completer
 #from ninja_ide.tools.completion import completer_widget
 
@@ -273,6 +273,13 @@ class ConsoleWidget(QPlainTextEdit):
             self.textCursor().removeSelectedText()
             return True
 
+        position = self.textCursor().positionInBlock() - len(self.prompt)
+        text = self.document().lastBlock().text()[len(self.prompt):]
+        if position < len(text):
+            if (text[position - 1] in BRACES and
+            text[position] in BRACES.values()):
+                self.textCursor().deleteChar()
+
         return self._get_cursor_position() == 0
 
     def keyPressEvent(self, event):
@@ -351,8 +358,8 @@ class ConsoleWidget(QPlainTextEdit):
     def highlight_current_line(self):
         self.extraSelections = []
         selection = QTextEdit.ExtraSelection()
-        lineColor = QColor(resources.CUSTOM_SCHEME.get('current-line',
-                    resources.COLOR_SCHEME['current-line']))
+        lineColor = QColor(resources.CUSTOM_SCHEME.get('CurrentLine',
+                    resources.COLOR_SCHEME['CurrentLine']))
         lineColor.setAlpha(20)
         selection.format.setBackground(lineColor)
         selection.format.setProperty(QTextFormat.FullWidthSelection, True)
@@ -378,40 +385,40 @@ class ConsoleWidget(QPlainTextEdit):
         else:
             self.setExtraSelections(self.extraSelections)
             return
-        if pos2 is not None:
-            self._braces = (pos1, pos2)
-            selection = QTextEdit.ExtraSelection()
-            selection.format.setForeground(QColor(
-                resources.CUSTOM_SCHEME.get('brace-foreground',
-                resources.COLOR_SCHEME.get('brace-foreground'))))
-            selection.format.setBackground(QColor(
-                resources.CUSTOM_SCHEME.get('brace-background',
-                resources.COLOR_SCHEME.get('brace-background'))))
-            selection.cursor = cursor
-            self.extraSelections.append(selection)
-            selection = QTextEdit.ExtraSelection()
-            selection.format.setForeground(QColor(
-                resources.CUSTOM_SCHEME.get('brace-foreground',
-                resources.COLOR_SCHEME.get('brace-foreground'))))
-            selection.format.setBackground(QColor(
-                resources.CUSTOM_SCHEME.get('brace-background',
-                resources.COLOR_SCHEME.get('brace-background'))))
-            selection.cursor = self.textCursor()
-            selection.cursor.setPosition(pos2)
-            selection.cursor.movePosition(QTextCursor.NextCharacter,
-                             QTextCursor.KeepAnchor)
-            self.extraSelections.append(selection)
-        else:
-            self._braces = (pos1,)
-            selection = QTextEdit.ExtraSelection()
-            selection.format.setBackground(QColor(
-                resources.CUSTOM_SCHEME.get('brace-background',
-                resources.COLOR_SCHEME.get('brace-background'))))
-            selection.format.setForeground(QColor(
-                resources.CUSTOM_SCHEME.get('brace-foreground',
-                resources.COLOR_SCHEME.get('brace-foreground'))))
-            selection.cursor = cursor
-            self.extraSelections.append(selection)
+        #if pos2 is not None:
+            #self._braces = (pos1, pos2)
+            #selection = QTextEdit.ExtraSelection()
+            #selection.format.setForeground(QColor(
+                #resources.CUSTOM_SCHEME.get('brace-foreground',
+                #resources.COLOR_SCHEME.get('brace-foreground'))))
+            #selection.format.setBackground(QColor(
+                #resources.CUSTOM_SCHEME.get('brace-background',
+                #resources.COLOR_SCHEME.get('brace-background'))))
+            #selection.cursor = cursor
+            #self.extraSelections.append(selection)
+            #selection = QTextEdit.ExtraSelection()
+            #selection.format.setForeground(QColor(
+                #resources.CUSTOM_SCHEME.get('brace-foreground',
+                #resources.COLOR_SCHEME.get('brace-foreground'))))
+            #selection.format.setBackground(QColor(
+                #resources.CUSTOM_SCHEME.get('brace-background',
+                #resources.COLOR_SCHEME.get('brace-background'))))
+            #selection.cursor = self.textCursor()
+            #selection.cursor.setPosition(pos2)
+            #selection.cursor.movePosition(QTextCursor.NextCharacter,
+                             #QTextCursor.KeepAnchor)
+            #self.extraSelections.append(selection)
+        #else:
+            #self._braces = (pos1,)
+            #selection = QTextEdit.ExtraSelection()
+            #selection.format.setBackground(QColor(
+                #resources.CUSTOM_SCHEME.get('brace-background',
+                #resources.COLOR_SCHEME.get('brace-background'))))
+            #selection.format.setForeground(QColor(
+                #resources.CUSTOM_SCHEME.get('brace-foreground',
+                #resources.COLOR_SCHEME.get('brace-foreground'))))
+            #selection.cursor = cursor
+            #self.extraSelections.append(selection)
         self.setExtraSelections(self.extraSelections)
 
     def _text_under_cursor(self):
@@ -543,13 +550,13 @@ class ConsoleWidget(QPlainTextEdit):
         css = 'QPlainTextEdit {color: %s; background-color: %s;' \
             'selection-color: %s; selection-background-color: %s;}' \
             % (resources.CUSTOM_SCHEME.get('editor-text',
-            resources.COLOR_SCHEME['editor-text']),
-            resources.CUSTOM_SCHEME.get('editor-background',
-                resources.COLOR_SCHEME['editor-background']),
-            resources.CUSTOM_SCHEME.get('editor-selection-color',
-                resources.COLOR_SCHEME['editor-selection-color']),
-            resources.CUSTOM_SCHEME.get('editor-selection-background',
-                resources.COLOR_SCHEME['editor-selection-background']))
+            resources.COLOR_SCHEME['Default']),
+            resources.CUSTOM_SCHEME.get('EditorBackground',
+                resources.COLOR_SCHEME['EditorBackground']),
+            resources.CUSTOM_SCHEME.get('EditorSelectionColor',
+                resources.COLOR_SCHEME['EditorSelectionColor']),
+            resources.CUSTOM_SCHEME.get('EditorSelectionBackground',
+                resources.COLOR_SCHEME['EditorSelectionBackground']))
         self.setStyleSheet(css)
 
     def load_project_into_console(self, projectFolder):

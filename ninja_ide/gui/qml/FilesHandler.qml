@@ -3,8 +3,10 @@ import QtQuick 1.1
 Rectangle {
     id: root
 
-    radius: 10
-    color: "#d7d7d7"
+    radius: 5
+    color: "#202123"
+    border.width: 1
+    border.color: "gray"
 
     PropertyAnimation {
         id: showAnim
@@ -15,12 +17,14 @@ Rectangle {
         duration: 300
     }
 
-    signal open(string path, string tempFile)
+    signal open(string path, string tempFile, string project)
     signal close(string path, string tempFile)
     signal hide
+    signal fuzzySearch(string search)
 
     function activateInput() {
-        listFiles.forceActiveFocus();
+        input.text = "";
+        input.forceActiveFocus();
     }
 
     function show_animation() {
@@ -29,10 +33,16 @@ Rectangle {
     }
 
     function open_item() {
-        var item = listFiles.model.get(listFiles.currentIndex);
+        var item;
+        if (listFiles.visible) {
+            item = listFiles.model.get(listFiles.currentIndex);
+        } else {
+            item = listFuzzyFiles.model.get(listFuzzyFiles.currentIndex);
+        }
         var path = item.path;
         var tempFile = item.tempFile;
-        root.open(path, tempFile);
+        var project = item.project;
+        root.open(path, tempFile, project);
     }
 
     function set_model(model) {
@@ -43,47 +53,181 @@ Rectangle {
                 "path": model[i][1],
                 "checkers": model[i][2],
                 "modified": model[i][3],
-                "tempFile": model[i][4]});
+                "tempFile": model[i][4],
+                "project": "",
+                "itemVisible": true});
+        }
+    }
+
+    function set_fuzzy_model(model) {
+        listFuzzyFiles.model.clear();
+        listFuzzyFiles.currentIndex = 0;
+        for(var i = 0; i < model.length; i++) {
+            listFuzzyFiles.model.append(
+                {"name": model[i][0],
+                "path": model[i][1],
+                "project": model[i][2],
+                "checkers": "",
+                "modified": "",
+                "tempFile": "",
+                "itemVisible": true});
         }
     }
 
     function clear_model() {
         listFiles.model.clear();
+        listFuzzyFiles.model.clear();
     }
 
     function next_item() {
-        var index = listFiles.currentIndex + 1;
-        if(index < listFiles.count) {
-            listFiles.currentIndex = index;
+        if (listFiles.visible) {
+            for (var i = 0; i < listFiles.model.count; i++) {
+                if (listFiles.currentIndex == (listFiles.count - 1)) {
+                    listFiles.currentIndex = 0;
+                } else {
+                    listFiles.incrementCurrentIndex();
+                }
+                if (listFiles.model.get(listFiles.currentIndex).itemVisible) {
+                    break
+                }
+            }
         } else {
-            listFiles.currentIndex = 0;
+            if (listFuzzyFiles.currentIndex == (listFuzzyFiles.count - 1)) {
+                listFuzzyFiles.currentIndex = 0;
+            } else {
+                listFuzzyFiles.incrementCurrentIndex();
+            }
         }
     }
 
     function previous_item() {
-        var index = listFiles.currentIndex - 1;
-        if(index >= 0) {
-            listFiles.currentIndex = index;
+        if (listFiles.visible) {
+            for (var i = 0; i < listFiles.model.count; i++) {
+                if (listFiles.currentIndex == 0) {
+                    listFiles.currentIndex = (listFiles.count - 1);
+                } else {
+                    listFiles.decrementCurrentIndex();
+                }
+                if (listFiles.model.get(listFiles.currentIndex).itemVisible) {
+                    break
+                }
+            }
         } else {
-            listFiles.currentIndex = listFiles.count - 1;
+            if (listFuzzyFiles.currentIndex == 0) {
+                listFuzzyFiles.currentIndex = (listFuzzyFiles.count - 1);
+            } else {
+                listFuzzyFiles.decrementCurrentIndex();
+            }
         }
+    }
+
+    Rectangle {
+        id: inputArea
+        radius: 2
+        color: "#2d2f31"
+        height: 30
+        anchors {
+            left: parent.left
+            right: parent.right
+            top: parent.top
+            margins: 10
+        }
+        border.color: "black"
+        border.width: 1
+        smooth: true
+
+        TextInput {
+            id: input
+            anchors {
+                fill: parent
+                margins: 4
+            }
+            focus: true
+            clip: true
+            color: "white"
+            font.pixelSize: 18
+
+            onTextChanged: {
+                var firstValidItem = -1;
+                for (var i = 0; i < listFiles.model.count; i++) {
+                    var item = listFiles.model.get(i);
+                    if (item.name.indexOf(input.text) == -1) {
+                        item.itemVisible = false;
+                    } else {
+                        if (firstValidItem == -1) firstValidItem = i;
+                        item.itemVisible = true;
+                    }
+                }
+                listFiles.currentIndex = firstValidItem;
+                if (firstValidItem == -1) {
+                    listFiles.visible = false;
+                    fuzzySearch(input.text);
+                } else {
+                    listFiles.visible = true;
+                }
+            }
+
+            Keys.onDownPressed: {
+                root.next_item();
+            }
+            Keys.onUpPressed: {
+                root.previous_item();
+            }
+            Keys.onEnterPressed: {
+                root.open_item();
+            }
+            Keys.onReturnPressed: {
+                root.open_item();
+            }
+        }
+    }
+
+    Text {
+        id: fuzzyText
+        color: "white"
+        font.pixelSize: 10
+        font.bold: true
+        anchors {
+            left: parent.left
+            right: parent.right
+            top: inputArea.bottom
+            margins: 5
+        }
+        horizontalAlignment: Text.AlignHCenter
     }
 
     Component {
         id: tabDelegate
-        Item {
+        Rectangle {
             id: item
-            width: root.width;
-            height: checkers ? 70 : 60
+            visible: itemVisible
+            width: parent.width
+            property int defaultValues: checkers ? 70 : 60
+            height: itemVisible ? defaultValues : 0
+            property bool current: ListView.isCurrentItem
+            color: item.current ? "#4182c4" : "#27292b"
+
+            property string mainTextColor: item.current ? "white" : "#aaaaaa"
+            property string mainTextModifiedColor: item.current ? "lightgreen" : "green"
 
             MouseArea {
                 anchors.fill: parent
 
                 onClicked: {
-                    var path = listFiles.model.get(index).path;
-                    var tempFile = listFiles.model.get(index).tempFile;
-                    root.open(path, tempFile);
+                    if (listFiles.visible) {
+                        listFiles.currentIndex = index;
+                    } else {
+                        listFuzzyFiles.currentIndex = index;
+                    }
+                    root.open_item();
                 }
+            }
+
+            Rectangle {
+                anchors.fill: imgClose
+                anchors.margins: 2
+                radius: width / 2
+                color: "white"
             }
 
             Image {
@@ -121,11 +265,13 @@ Rectangle {
                     anchors {
                         left: parent.left
                         right: parent.right
+                        rightMargin: imgClose.width
                     }
-                    color: modified ? "green" : "black"
+                    color: modified ? mainTextModifiedColor : mainTextColor
                     font.pixelSize: 18
                     font.bold: true
                     text: name
+                    elide: Text.ElideRight
                     font.italic: modified
                 }
                 Text {
@@ -133,7 +279,7 @@ Rectangle {
                         left: parent.left
                         right: parent.right
                     }
-                    color: "gray"
+                    color: item.current ? "#aaaaaa" : "#555555"
                     elide: Text.ElideLeft
                     text: path
                 }
@@ -160,25 +306,36 @@ Rectangle {
 
     ListView {
         id: listFiles
-        anchors.fill: parent
+        anchors {
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+            top: inputArea.bottom
+            margins: 5
+        }
+        spacing: 2
 
         focus: true
         model: ListModel {}
         delegate: tabDelegate
-        highlight: Rectangle { color: "lightsteelblue"; radius: 10; width: root.width }
         highlightMoveDuration: 200
+    }
 
-        Keys.onDownPressed: {
-            listFiles.incrementCurrentIndex();
+    ListView {
+        id: listFuzzyFiles
+        anchors {
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+            top: fuzzyText.bottom
+            margins: 5
         }
-        Keys.onUpPressed: {
-            listFiles.decrementCurrentIndex();
-        }
-        Keys.onEnterPressed: {
-            root.open_item();
-        }
-        Keys.onReturnPressed: {
-            root.open_item();
-        }
+        visible: !listFiles.visible
+        spacing: 2
+
+        focus: true
+        model: ListModel {}
+        delegate: tabDelegate
+        highlightMoveDuration: 200
     }
 }

@@ -23,10 +23,12 @@ import webbrowser
 
 from PyQt4 import uic
 from PyQt4.QtGui import QWidget
+from PyQt4.QtGui import QVBoxLayout
 from PyQt4.QtGui import QStackedLayout
 from PyQt4.QtGui import QMessageBox
 from PyQt4.QtGui import QFileDialog
 from PyQt4.QtGui import QPixmap
+from PyQt4.QtCore import Qt
 from PyQt4.QtCore import QDir
 from PyQt4.QtCore import SIGNAL
 
@@ -43,6 +45,7 @@ from ninja_ide.gui.main_panel import main_selector
 from ninja_ide.gui.main_panel import browser_widget
 from ninja_ide.gui.main_panel import start_page
 from ninja_ide.gui.main_panel import files_handler
+from ninja_ide.gui.main_panel import add_file_folder
 from ninja_ide.gui.main_panel import image_viewer
 from ninja_ide.gui.main_panel import combo_editor
 from ninja_ide.gui.main_panel.helpers import split_orientation
@@ -88,12 +91,17 @@ class _MainContainer(QWidget):
     def __init__(self, parent=None):
         super(_MainContainer, self).__init__(parent)
         self._parent = parent
-        self.stack = QStackedLayout(self)
+        self._vbox = QVBoxLayout(self)
+        self._vbox.setContentsMargins(0, 0, 0, 0)
+        self._vbox.setSpacing(0)
+        self.stack = QStackedLayout()
         self.stack.setStackingMode(QStackedLayout.StackAll)
+        self._vbox.addLayout(self.stack)
 
         self.splitter = dynamic_splitter.DynamicSplitter()
         self.setAcceptDrops(True)
-        self.files_handler = files_handler.FilesHandler(self)
+        self._files_handler = files_handler.FilesHandler(self)
+        self._add_file_folder = add_file_folder.AddFileFolderWidget(self)
 
         #documentation browser
         self.docPage = None
@@ -134,6 +142,7 @@ class _MainContainer(QWidget):
         IDE.register_signals('main_container', connections)
 
         self.selector = main_selector.MainSelector(self)
+        self._opening_dialog = False
         self.add_widget(self.selector)
 
         if settings.SHOW_START_PAGE:
@@ -141,8 +150,14 @@ class _MainContainer(QWidget):
 
         self.connect(self.selector, SIGNAL("changeCurrent(int)"),
                      self._change_current_stack)
+        self.connect(self.selector, SIGNAL("removeWidget(int)"),
+                     self._remove_item_from_stack)
         self.connect(self.selector, SIGNAL("ready()"),
                      self._selector_ready)
+        self.connect(self.selector, SIGNAL("animationCompleted()"),
+                     self._selector_animation_completed)
+        self.connect(self, SIGNAL("closeDialog(PyQt_PyObject)"),
+                     self.remove_widget)
 
     def install(self):
         ide = IDE.get_service('ide')
@@ -151,8 +166,6 @@ class _MainContainer(QWidget):
         self.combo_area = combo_editor.ComboEditor(original=True)
         self.connect(self.combo_area, SIGNAL("allFilesClosed()"),
                      self._files_closed)
-        self.connect(self.combo_area, SIGNAL("showComboSelector()"),
-                     self.change_tab)
         self.splitter.add_widget(self.combo_area)
         self.add_widget(self.splitter)
 
@@ -160,12 +173,31 @@ class _MainContainer(QWidget):
 
         ui_tools.install_shortcuts(self, actions.ACTIONS, ide)
 
+    def add_status_bar(self, status):
+        self._vbox.addWidget(status)
+
     @property
     def combo_header_size(self):
         return self.combo_area.bar.height()
 
     def add_widget(self, widget):
         self.stack.addWidget(widget)
+
+    def remove_widget(self, widget):
+        self.stack.removeWidget(widget)
+
+    def _close_dialog(self, widget):
+        self.emit(SIGNAL("closeDialog(PyQt_PyObject)"), widget)
+        self.disconnect(widget, SIGNAL("finished(int)"),
+                        lambda: self._close_dialog(widget))
+
+    def show_dialog(self, widget):
+        self._opening_dialog = True
+        self.connect(widget, SIGNAL("finished(int)"),
+                     lambda: self._close_dialog(widget))
+        self.setVisible(True)
+        self.stack.addWidget(widget)
+        self.show_selector()
 
     def show_selector(self):
         if self.selector != self.stack.currentWidget():
@@ -178,14 +210,17 @@ class _MainContainer(QWidget):
                 widget = self.stack.widget(index)
                 if widget == self.selector:
                     continue
+                closable = True
+                if widget == self.splitter:
+                    closable = False
                 pixmap = QPixmap.grabWidget(widget, widget.rect())
                 path = os.path.join(temp_dir, "screen%s.png" % index)
                 pixmap.save(path)
                 if index == current:
                     self.selector.set_preview(index, path)
-                    collected_data.insert(0, (index, path))
+                    collected_data.insert(0, (index, path, closable))
                 else:
-                    collected_data.append((index, path))
+                    collected_data.append((index, path, closable))
             self.selector.set_model(collected_data)
         else:
             self.selector.close_selector()
@@ -194,8 +229,19 @@ class _MainContainer(QWidget):
         self.stack.setCurrentWidget(self.selector)
         self.selector.start_animation()
 
+    def _selector_animation_completed(self):
+        if self._opening_dialog:
+            # We choose the last one with -2, -1 (for last one) +
+            # -1 for the hidden selector widget which is in the stacked too.
+            self.selector.open_item(self.stack.count() - 2)
+        self._opening_dialog = False
+
     def _change_current_stack(self, index):
         self.stack.setCurrentIndex(index)
+
+    def _remove_item_from_stack(self, index):
+        widget = self.stack.takeAt(index)
+        del widget
 
     def show_editor_area(self):
         self.stack.setCurrentWidget(self.splitter)
@@ -224,7 +270,7 @@ class _MainContainer(QWidget):
         editorWidget = self.get_current_editor()
         if editorWidget:
             self.__codeBack.append((editorWidget.file_path,
-                                   editorWidget.textCursor().position()))
+                                   editorWidget.getCursorPosition()))
             self.__codeForward = []
         self._locator.navigate_to(function, filePath, isVariable)
 
@@ -241,17 +287,16 @@ class _MainContainer(QWidget):
         """Paste the text from the copy/paste history."""
         editorWidget = self.get_current_editor()
         if editorWidget and editorWidget.hasFocus():
-            cursor = editorWidget.textCursor()
+            line, index = editorWidget.getCursorPosition()
             central = IDE.get_service('central_container')
             if central:
-                cursor.insertText(central.get_paste())
+                editorWidget.insertAt(central.get_paste(), line, index)
 
     def copy_history(self):
         """Copy the selected text into the copy/paste history."""
         editorWidget = self.get_current_editor()
         if editorWidget and editorWidget.hasFocus():
-            cursor = editorWidget.textCursor()
-            copy = cursor.selectedText()
+            copy = editorWidget.selectedText()
             central = IDE.get_service('central_container')
             if central:
                 central.add_copy(copy)
@@ -268,7 +313,7 @@ class _MainContainer(QWidget):
         editorWidget = self.get_current_editor()
         if editorWidget:
             self.__codeBack.append((editorWidget.file_path,
-                                   editorWidget.textCursor().position()))
+                                   editorWidget.getCursorPosition()))
             self.__codeForward = []
 
     def preview_in_browser(self):
@@ -286,11 +331,11 @@ class _MainContainer(QWidget):
         editorWidget = self.get_current_editor()
         if editorWidget and editorWidget.hasFocus():
             if self.current_widget.bar.code_navigator.operation == 1:
-                editorWidget._sidebarWidget.set_bookmark(
-                    editorWidget.textCursor().blockNumber())
+                editorWidget.handle_bookmarks_breakpoints(
+                    editorWidget.getCursorPosition()[0], Qt.ControlModifier)
             elif self.current_widget.bar.code_navigator.operation == 2:
-                editorWidget._sidebarWidget.set_breakpoint(
-                    editorWidget.textCursor().blockNumber())
+                editorWidget.handle_bookmarks_breakpoints(
+                    editorWidget.getCursorPosition()[0], Qt.NoModifier)
 
     def __navigate_with_keyboard(self, val):
         """Navigate between the positions in the jump history stack."""
@@ -309,15 +354,17 @@ class _MainContainer(QWidget):
             editorWidget = self.get_current_editor()
             if editorWidget:
                 self.__codeForward.append((editorWidget.file_path,
-                                          editorWidget.textCursor().position()))
+                                          editorWidget.getCursorPosition()))
         elif val and self.__codeForward:
             node = self.__codeForward.pop()
             editorWidget = self.get_current_editor()
             if editorWidget:
                 self.__codeBack.append((editorWidget.file_path,
-                                       editorWidget.textCursor().position()))
+                                       editorWidget.getCursorPosition()))
         if node:
-            self.open_file(node[0], node[1])
+            filename = node[0]
+            line, col = node[1]
+            self.open_file(filename, line, col)
 
     def _navigate_breakpoints(self, val):
         """Navigate between the breakpoints."""
@@ -403,9 +450,9 @@ class _MainContainer(QWidget):
         """Count the lines of code in the current file."""
         editorWidget = self.get_current_editor()
         if editorWidget:
-            block_count = editorWidget.blockCount()
+            block_count = editorWidget.lines()
             blanks = re.findall('(^\n)|(^(\s+)?#)|(^( +)?($|\n))',
-                                editorWidget.get_text(), re.M)
+                                editorWidget.text(), re.M)
             blanks_count = len(blanks)
             resume = self.tr("Lines code: %s\n") % (block_count - blanks_count)
             resume += (self.tr("Blanks and commented lines: %s\n\n") %
@@ -476,7 +523,7 @@ class _MainContainer(QWidget):
         """Indent 1 position to the right for the current line or selection."""
         editorWidget = self.get_current_editor()
         if editorWidget and editorWidget.hasFocus():
-            editorWidget.indent_more()
+            editorWidget.indent()
 
     def editor_insert_debugging_prints(self):
         """Insert a print statement in each selected line."""
@@ -634,7 +681,7 @@ class _MainContainer(QWidget):
         editorWidget = editor.create_editor(editable)
 
         #Connect signals
-        self.connect(editorWidget, SIGNAL("fileSaved(QPlainTextEdit)"),
+        self.connect(editable, SIGNAL("fileSaved(PyQt_PyObject)"),
                      self._editor_tab_was_saved)
         self.connect(editorWidget, SIGNAL("openDropFile(QString)"),
                      self.open_file)
@@ -643,15 +690,8 @@ class _MainContainer(QWidget):
         self.connect(editorWidget,
                      SIGNAL("locateFunction(QString, QString, bool)"),
                      self._editor_locate_function)
-        self.connect(editorWidget,
-                     SIGNAL("checksFound(QPlainTextEdit, PyQt_PyObject)"),
-                     self._show_tab_indicator)
-        self.connect(editorWidget, SIGNAL("cleanDocument(QPlainTextEdit)"),
-                     self._hide_icon_tab_indicator)
         self.connect(editorWidget, SIGNAL("findOcurrences(QString)"),
                      self._find_occurrences)
-        self.connect(editorWidget, SIGNAL("migrationAnalyzed()"),
-                     lambda: self.emit(SIGNAL("migrationAnalyzed()")))
         #keyPressEventSignal for plugins
         self.connect(editorWidget, SIGNAL("keyPressEvent(QEvent)"),
                      self._editor_keyPressEvent)
@@ -685,22 +725,6 @@ class _MainContainer(QWidget):
     def _find_occurrences(self, word):
         self.emit(SIGNAL("findOcurrences(QString)"), word)
 
-    def _show_tab_indicator(self, editorWidget, icon):
-        pass
-        #index = self.tabs.indexOf(editorWidget)
-        #self.emit(SIGNAL("updateFileMetadata()"))
-        #if index >= 0 and icon:
-            #if isinstance(icon, int):
-                #icon = QIcon(self.style().standardIcon(icon))
-            #self.tabs.setTabIcon(index, icon)
-
-    def _hide_icon_tab_indicator(self, editorWidget):
-        pass
-        #index = self.tabs.indexOf(editorWidget)
-        #self.emit(SIGNAL("updateFileMetadata()"))
-        #if index >= 0:
-            #self.tabs.setTabIcon(index, QIcon())
-
     def _editor_keyPressEvent(self, event):
         self.emit(SIGNAL("editorKeyPressEvent(QEvent)"), event)
 
@@ -708,8 +732,8 @@ class _MainContainer(QWidget):
         self.emit(SIGNAL("locateFunction(QString, QString, bool)"),
                   function, filePath, isVariable)
 
-    def _editor_tab_was_saved(self, editorWidget=None):
-        self.emit(SIGNAL("updateLocator(QString)"), editorWidget.file_path)
+    def _editor_tab_was_saved(self, editable=None):
+        self.emit(SIGNAL("updateLocator(QString)"), editable.file_path)
 
     def get_current_widget(self):
         return self.current_widget.currentWidget()
@@ -746,9 +770,7 @@ class _MainContainer(QWidget):
             QMessageBox.information(self, self.tr("Incorrect File"),
                                     self.tr("The image couldn\'t be open"))
 
-    def open_file(self, filename='', cursorPosition=-1,
-                  tabIndex=None, positionIsLineNumber=False,
-                  ignore_checkers=False):
+    def open_file(self, filename='', line=-1, col=0, ignore_checkers=False):
         logger.debug("will try to open %s" % filename)
         if not filename:
             logger.debug("has nofilename")
@@ -785,22 +807,16 @@ class _MainContainer(QWidget):
                 self.w = uic.loadUi(filename)
                 self.w.show()
             else:
-                logger.debug("will try to open")
-                self.__open_file(filename, cursorPosition,
-                                 tabIndex, positionIsLineNumber,
+                logger.debug("will try to open: " + filename)
+                self.__open_file(filename, line, col,
                                  ignore_checkers)
 
-    def __open_file(self, fileName='', cursorPosition=-1,
-                    tabIndex=None, positionIsLineNumber=False,
-                    ignore_checkers=False):
+    def __open_file(self, fileName='', line=-1, col=0, ignore_checkers=False):
         try:
             editorWidget = self.add_editor(fileName,
                                            ignore_checkers=ignore_checkers)
-            if cursorPosition != -1:
-                if positionIsLineNumber:
-                    editorWidget.go_to_line(cursorPosition)
-                else:
-                    editorWidget.set_cursor_position(cursorPosition)
+            if line != -1:
+                editorWidget.set_cursor_position(line, col)
             self.emit(SIGNAL("currentEditorChanged(QString)"), fileName)
         except file_manager.NinjaIOException as reason:
             QMessageBox.information(self,
@@ -868,11 +884,10 @@ class _MainContainer(QWidget):
             editorWidget.neditable.save_content()
             #file_manager.store_file_content(
                 #fileName, content, addExtension=False)
-            encoding = file_manager.get_file_encoding(editorWidget.get_text())
+            encoding = file_manager.get_file_encoding(editorWidget.text())
             editorWidget.encoding = encoding
             self.emit(SIGNAL("fileSaved(QString)"),
                       (self.tr("File Saved: %s") % editorWidget.file_path))
-            editorWidget._file_saved()
             return True
         except Exception as reason:
             logger.error('save_file: %s', reason)
@@ -906,7 +921,6 @@ class _MainContainer(QWidget):
             self.emit(SIGNAL("fileSaved(QString)"),
                             (self.tr("File Saved: %s") % fileName))
             self.emit(SIGNAL("currentEditorChanged(QString)"), fileName)
-            editorWidget._file_saved()
             return True
         except file_manager.NinjaFileExistsException as ex:
             QMessageBox.information(self, self.tr("File Already Exists"),
@@ -1073,15 +1087,21 @@ class _MainContainer(QWidget):
         """Close the current tab in the current TabWidget."""
         self.current_widget.close_current_file()
 
+    def create_file(self, base_path, project_path):
+        self._add_file_folder.create_file(base_path, project_path)
+
+    def create_folder(self, base_path, project_path):
+        self._add_file_folder.create_folder(base_path, project_path)
+
     def change_tab(self):
         """Change the tab in the current TabWidget."""
         self.stack.setCurrentWidget(self.splitter)
-        self.files_handler.next_item()
+        self._files_handler.next_item()
 
     def change_tab_reverse(self):
         """Change the tab in the current TabWidget backwards."""
         self.stack.setCurrentWidget(self.splitter)
-        self.files_handler.previous_item()
+        self._files_handler.previous_item()
 
     def toggle_tabs_and_spaces(self):
         """ Toggle Show/Hide Tabs and Spaces """

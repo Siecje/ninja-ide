@@ -303,42 +303,13 @@ class LocatorWidget(QDialog):
             self._line_jump = int(filterOptions[index + 1]) - 1
         return index + 2
 
-    #def keyPressEvent(self, event):
-        #if event.key() == Qt.Key_Space:
-            #item = self.popup.listWidget.currentItem()
-            #self.setText(item.data.comparison)
-            #return
-
-        #super(LocatorCompleter, self).keyPressEvent(event)
-        #currentRow = self.popup.listWidget.currentRow()
-        #if event.key() == Qt.Key_Down:
-            #count = self.popup.listWidget.count()
-            ##If the current position is greater than the amount of items in
-            ##the list - 6, then try to fetch more items in the list.
-            #if currentRow >= (count - 6):
-                #locations = self._create_list_widget_items(self.tempLocations)
-                #self.popup.fetch_more(locations)
-            ##While the current position is lower that the list size go to next
-            #if currentRow != count - 1:
-                #self.popup.listWidget.setCurrentRow(
-                    #self.popup.listWidget.currentRow() + 1)
-        #elif event.key() == Qt.Key_Up:
-            ##while the current position is greater than 0, go to previous
-            #if currentRow > 0:
-                #self.popup.listWidget.setCurrentRow(
-                    #self.popup.listWidget.currentRow() - 1)
-        #elif event.key() in (Qt.Key_Return, Qt.Key_Enter):
-            ##If the user press enter, go to the item selected
-            #item = self.popup.listWidget.currentItem()
-            #self._go_to_location(item)
-
     def _open_item(self, path, lineno):
         """Open the item received."""
         main_container = IDE.get_service('main_container')
         if not main_container:
             return
         jump = lineno if self._line_jump == -1 else self._line_jump
-        main_container.open_file(path, jump, None, True)
+        main_container.open_file(path, jump)
         self.hide()
 
     def hideEvent(self, event):

@@ -187,6 +187,15 @@ TR_PROJECT_METADATA_RELATED = tr(
 TR_PROJECT_METADATA_TIP = tr(
     "NINJA-IDE",
     "Split your paths using newlines [ENTER].")
+TR_PROJECT_EXTENSIONS_TOOLTIP = tr(
+    "NINJA-IDE",
+    ("Supported Extensions:\n"
+     "Add: .[ext] with [ext = py html etc] to include new extension\n"
+     "Add: .* to show any file with extension\n"
+     "Add: * to show any file with or without extension"))
+TR_PROJECT_EXTENSIONS_INSTRUCTIONS = tr(
+    "NINJA-IDE",
+    "Mouse over supported extensions for instructions")
 
 
 #Locator Strings
@@ -341,6 +350,7 @@ TR_CHANGE_KEYBOARD_FOCUS_BETWEEN_SPLITS = tr(
 TR_INSERT_BREAKPOINT = tr("NINJA-IDE", "Insert Bookmark/Breakpoint")
 TR_MOVE_TAB_TO_NEXT_SPLIT = tr("NINJA-IDE", "Move Current Tab to Next Split")
 TR_SHOW_TABS_IN_EDITOR = tr("NINJA-IDE", "Show/Hide Tabs in Editor")
+TR_SHOW_INDENTATION_GUIDE = tr("NINJA-IDE", "Show Indentation Guide")
 TR_HIGHLIGHT_OCCURRENCES = tr(
     "NINJA-IDE",
     "Highlight Occurrences of Word Under Cursor")
@@ -651,11 +661,20 @@ TR_SELECT_EXEC_OPTION_3 = tr(
     "that 2to3 cannot trivially fix")
 
 
+# 2to3
+TR_CURRENT_CODE = tr("NINJA-IDE", "Current code")
+TR_SUGGESTED_CHANGES = tr("NINJA-IDE", "Suggested code")
+TR_APPLY_CHANGES = tr("NINJA-IDE", "Apply changes")
+TR_SAVE_BEFORE_APPLY = tr("NINJA-IDE", "Save the file before applying changes")
 
 
+# from_import_dialog
+TR_INSERT_AT_LINE = tr("NINJA-IDE", "Insert at line")
+TR_WITH_COMMENT = tr("NINJA-IDE", "with comment")
+TR_ADD = tr("NINJA-IDE", "Add")
 
 
-
+# Themes
 TR_CODE = tr("NINJA-IDE", "Code")
 TR_PREVIEW = tr("NINJA-IDE", "Preview")
 TR_SCHEME_INVALID_NAME = tr(
@@ -664,3 +683,4 @@ TR_SCHEME_INVALID_NAME = tr(
     "\nPlease pick a different name.")
 TR_WANT_OVERWRITE_FILE = tr("NINJA-IDE", "Do you want to overwrite the file")
 TR_SCHEME_SAVED = tr("NINJA-IDE", "The scheme has been saved")
+

@@ -41,6 +41,8 @@ import ninja_ide.gui.main_panel.main_container
 import ninja_ide.gui.tools_dock.tools_dock
 import ninja_ide.gui.menus.menubar
 #from ninja_ide.tools.completion import completion_daemon
+# Syntax
+from ninja_ide.gui.syntax_registry import syntax_registry
 # Explorer Container
 from ninja_ide.gui.explorer.tabs import tree_projects_widget
 from ninja_ide.gui.explorer.tabs import tree_symbols_widget
@@ -98,8 +100,8 @@ def start_ide(app, filenames, projects_path, extra_plugins, linenos):
     app.processEvents()
 
     # Set the cursor to unblinking
-    if not settings.IS_WINDOWS:
-        app.setCursorFlashTime(0)
+    #if not settings.IS_WINDOWS:
+        #app.setCursorFlashTime(0)
 
     #Set the codec for strings (QString)
     QTextCodec.setCodecForCStrings(QTextCodec.codecForName('utf-8'))
@@ -206,8 +208,9 @@ def start_ide(app, filenames, projects_path, extra_plugins, linenos):
         projects = []
 
     #Include files received from console args
-    file_with_nro = list([(f[0], f[1] - 1, 0) for f in zip(filenames, linenos)])
-    file_without_nro = list([(f, 0, 0) for f in filenames[len(linenos):]])
+    file_with_nro = list([(f[0], (f[1] - 1, 0), 0)
+                         for f in zip(filenames, linenos)])
+    file_without_nro = list([(f, (0, 0), 0) for f in filenames[len(linenos):]])
     files += file_with_nro + file_without_nro
     #Include projects received from console args
     if projects_path:

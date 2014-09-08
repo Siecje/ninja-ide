@@ -68,8 +68,8 @@ class SidebarWidget(QWidget):
     def update_area(self):
         maxLine = math.ceil(math.log10(self.edit.blockCount()))
         width = QFontMetrics(
-            self.edit.document().defaultFont()).width('0' * int(maxLine)) \
-                + 10 + self.foldArea
+            self.edit.document().defaultFont()).width(
+                '0' * int(maxLine)) + 10 + self.foldArea
         if self.width() != width:
             self.setFixedWidth(width)
             self.edit.setViewportMargins(width, 0, 0, 0)
@@ -77,23 +77,6 @@ class SidebarWidget(QWidget):
 
     def update(self, *args):
         QWidget.update(self, *args)
-
-    def update_sidebar_marks(self, blockNumber, diference, atLineStart=False):
-        if self.breakpoints:
-            self.breakpoints = helpers.add_line_increment(
-                self.breakpoints, blockNumber, diference, atLineStart)
-            if not self._neditable.new_document:
-                settings.BREAKPOINTS[self._neditable.file_path] = \
-                    self._sidebarWidget._breakpoints
-        if self.bookmarks:
-            self.bookmarks = helpers.add_line_increment(
-                self.bookmarks, blockNumber, diference, atLineStart)
-            if not self._neditable.new_document:
-                settings.BOOKMARKS[self._neditable.file_path] = \
-                    self._sidebarWidget._bookmarks
-        if self.foldedBlocks and self._neditable.file_path:
-            self.foldedBlocks = self._add_line_increment(
-                self.foldedBlocks, blockNumber - 1, diference, atLineStart)
 
     def code_folding_event(self, lineNumber):
         if self._is_folded(lineNumber):
@@ -314,8 +297,9 @@ class SidebarWidget(QWidget):
             iconPainter.setRenderHint(QPainter.Antialiasing)
             iconPainter.setPen(Qt.NoPen)
             iconPainter.setBrush(QColor(
-                resources.CUSTOM_SCHEME.get('fold-arrow',
-                resources.COLOR_SCHEME['fold-arrow'])))
+                resources.CUSTOM_SCHEME.get(
+                    'fold-arrow',
+                    resources.COLOR_SCHEME['fold-arrow'])))
             iconPainter.drawPolygon(polygon)
 
             polygon.clear()
@@ -326,8 +310,9 @@ class SidebarWidget(QWidget):
             iconPainter.setRenderHint(QPainter.Antialiasing)
             iconPainter.setPen(Qt.NoPen)
             iconPainter.setBrush(QColor(
-                resources.CUSTOM_SCHEME.get('fold-arrow',
-                resources.COLOR_SCHEME['fold-arrow'])))
+                resources.CUSTOM_SCHEME.get(
+                    'fold-arrow',
+                    resources.COLOR_SCHEME['fold-arrow'])))
             iconPainter.drawPolygon(polygon)
 
             self.calculate_docstring_block_fold()
@@ -349,10 +334,10 @@ class SidebarWidget(QWidget):
                 if can_fold:
                     if block.blockNumber() in self.foldedBlocks:
                         painter.drawPixmap(xofs, round(position.y()),
-                            self.rightArrowIcon)
+                                           self.rightArrowIcon)
                     else:
                         painter.drawPixmap(xofs, round(position.y()),
-                            self.downArrowIcon)
+                                           self.downArrowIcon)
             #Add Bookmarks and Breakpoint
             if block.blockNumber() in self.breakpoints:
                 linear_gradient = QLinearGradient(
@@ -385,7 +370,7 @@ class SidebarWidget(QWidget):
             block = block.next()
 
         painter.end()
-        QWidget.paintEvent(self, event)
+        super(SidebarWidget, self).paintEvent(event)
 
     def calculate_docstring_block_fold(self):
         self._endDocstringBlocks = []
@@ -422,18 +407,18 @@ class SidebarWidget(QWidget):
                         block).topLeft() + viewport_offset
                     if position.y() > page_bottom:
                         break
-                    if position.y() < ys and (position.y() + fh) > ys and \
-                      pattern.match(str(block.text())):
+                    if (position.y() < ys and (position.y() + fh) > ys and
+                            pattern.match(str(block.text()))):
                         if not block.blockNumber() in self._endDocstringBlocks:
                             lineNumber = block.blockNumber() + 1
                             break
-                    if position.y() < ys and (position.y() + fh) > ys and \
-                      event.button() == Qt.LeftButton:
+                    if (position.y() < ys and (position.y() + fh) > ys and
+                            event.button() == Qt.LeftButton):
                         line = block.blockNumber()
                         self.set_breakpoint(line)
                         break
-                    elif position.y() < ys and (position.y() + fh) > ys and \
-                      event.button() == Qt.RightButton:
+                    elif (position.y() < ys and (position.y() + fh) > ys and
+                          event.button() == Qt.RightButton):
                         line = block.blockNumber()
                         self.set_bookmark(line)
                         break

@@ -26,6 +26,7 @@ logger = NinjaLogger('ninja_ide.gui.explorer.tree_projects_widget')
 DEBUG = logger.debug
 
 from PyQt4.QtGui import QTreeView
+from PyQt4.QtGui import QAbstractItemView
 from PyQt4.QtGui import QStackedLayout
 from PyQt4.QtGui import QDialog
 from PyQt4.QtGui import QComboBox
@@ -63,7 +64,6 @@ class ProjectTreeColumn(QDialog):
         vbox = QVBoxLayout(self)
         vbox.setSizeConstraint(QVBoxLayout.SetDefaultConstraint)
         vbox.setContentsMargins(0, 0, 0, 0)
-        #vbox.setSpacing(0)
         self._buttons = []
 
         self._combo_project = QComboBox()
@@ -135,16 +135,22 @@ class ProjectTreeColumn(QDialog):
         qfsm = ninjaide.filesystem.open_project(project)
         if qfsm:
             self.add_project(project)
-            self.emit(SIGNAL("updateLocator()"))
             self.save_recent_projects(folderName)
             main_container = IDE.get_service('main_container')
             if main_container:
                 main_container.show_editor_area()
+            if len(self.projects) > 1:
+                title = "%s (%s)" % (
+                    translations.TR_TAB_PROJECTS, len(self.projects))
+            else:
+                title = translations.TR_TAB_PROJECTS
+            self.emit(
+                SIGNAL("changeTitle(PyQt_PyObject, QString)"), self, title)
 
     def _add_file_to_project(self, path):
         """Add the file for 'path' in the project the user choose here."""
-        if self._active_project:
-            pathProject = [self._active_project.project]
+        if self._projects_area.count() > 0:
+            pathProject = [self.current_project]
             addToProject = add_to_project.AddToProject(pathProject, self)
             addToProject.exec_()
             if not addToProject.pathSelected:
@@ -168,7 +174,7 @@ class ProjectTreeColumn(QDialog):
             new_path = file_manager.create_path(addToProject.pathSelected, name)
             ide_srv = IDE.get_service("ide")
             old_file = ide_srv.get_or_create_nfile(path)
-            new_file = old_file.save(editorWidget.get_text(), new_path)
+            new_file = old_file.save(editorWidget.text(), new_path)
             #FIXME: Make this file replace the original in the open tab
         else:
             pass
@@ -182,20 +188,15 @@ class ProjectTreeColumn(QDialog):
         expanded for the first project only).
         Note: This slot is connected to the main container's
         "showFileInExplorer(QString)" signal.'''
+        central = IDE.get_service('central_container')
+        if central and not central.is_lateral_panel_visible():
+            return
         for project in self.projects:
             index = project.model().index(path)
             if index.isValid():
-                # Show the explorer if it is currently hidden
-                central = IDE.get_service('central_container')
-                if central and not central.is_lateral_panel_visible():
-                    central.change_lateral_visibility()
                 # This highlights the index in the tree for us
+                project.scrollTo(index, QAbstractItemView.EnsureVisible)
                 project.setCurrentIndex(index)
-                # Loop through the parents to expand the tree
-                # all the way up to the selected index.
-                while index.isValid():
-                    project.expand(index)
-                    index = index.parent()
                 break
 
     def add_project(self, project):
@@ -225,6 +226,13 @@ class ProjectTreeColumn(QDialog):
         ninjaide = IDE.get_service('ide')
         ninjaide.filesystem.close_project(widget.project.path)
         widget.deleteLater()
+        if len(self.projects) > 1:
+            title = "%s (%s)" % (
+                translations.TR_TAB_PROJECTS, len(self.projects))
+        else:
+            title = translations.TR_TAB_PROJECTS
+        self.emit(
+            SIGNAL("changeTitle(PyQt_PyObject, QString)"), self, title)
 
     def _change_current_project(self, index):
         self._projects_area.setCurrentIndex(index)
@@ -235,8 +243,8 @@ class ProjectTreeColumn(QDialog):
 
     def save_project(self):
         """Save all the opened files that belongs to the actual project."""
-        if self._active_project:
-            path = self._projects_area.currentWidget().project.path
+        if self._projects_area.count() > 0:
+            path = self.current_project.path
             main_container = IDE.get_service('main_container')
             if path and main_container:
                 main_container.save_project(path)
@@ -418,6 +426,10 @@ class TreeProjectsWidget(QTreeView):
         self.state_index = list()
         self._folding_menu = FoldingContextMenu(self)
 
+    def refresh_file_filters(self):
+        ninjaide = IDE.get_service("ide")
+        ninjaide.filesystem.refresh_name_filters(self.project)
+
     #FIXME: Check using the amount of items under this tree
     #add it to the items of pindex item children
     def _item_collapsed(self, tree_item):
@@ -551,31 +563,17 @@ class TreeProjectsWidget(QTreeView):
     def _add_new_file(self, path=''):
         if not path:
             path = self.model().filePath(self.currentIndex())
-        result = QInputDialog.getText(self, translations.TR_NEW_FILE,
-                                      translations.TR_ENTER_NEW_FILENAME + ": ")
-        fileName = result[0]
-
-        if result[1] and fileName.strip() != '':
-            fileName = os.path.join(path, fileName)
-            ide_srv = IDE.get_service('ide')
-            current_nfile = ide_srv.get_or_create_nfile(fileName)
-            current_nfile.create()
             main_container = IDE.get_service('main_container')
-            if main_container:
-                main_container.open_file(fileName)
+            project_path = self.project.path
+            main_container.create_file(path, project_path)
 
     def _add_new_folder(self, path=''):
         #FIXME: We need nfilesystem support for this
         if not path:
             path = self.model().filePath(self.currentIndex())
-        result = QInputDialog.getText(self, translations.TR_ADD_NEW_FOLDER,
-                                      translations.TR_ENTER_NEW_FOLDER_NAME +
-                                      ": ")
-        folderName = result[0]
-
-        if result[1] and folderName.strip() != '':
-            folderName = os.path.join(path, folderName)
-            file_manager.create_folder(folderName)
+            main_container = IDE.get_service('main_container')
+            project_path = self.project.path
+            main_container.create_folder(path, project_path)
 
     def _delete_file(self, path=''):
         if not path:

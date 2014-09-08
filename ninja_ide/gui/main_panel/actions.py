@@ -280,10 +280,10 @@ ACTIONS = (
     "shortcut": "Show-Code-Nav",
     "connect": "show_navigation_buttons"
     },
-    {
-    "shortcut": "change-split-focus",
-    "connect": "change_split_focus"
-    },
+    #{
+    #"shortcut": "change-split-focus",
+    #"connect": "change_split_focus"
+    #},
     {
     "shortcut": "change-tab-visibility",
     "connect": "change_tabs_visibility"
@@ -401,12 +401,14 @@ ACTIONS = (
                'section': (translations.TR_MENU_SOURCE,
                            translations.TR_DEBUGGING_TRICKS),
                'weight': 320},
+    "connect": "editor_insert_debugging_prints"
     },
     {
     "action": {'text': translations.TR_INSERT_PDB,
                'section': (translations.TR_MENU_SOURCE,
                            translations.TR_DEBUGGING_TRICKS),
                'weight': 320},
+    "connect": "editor_insert_pdb"
     },
     {
     "action": {'text': translations.TR_REMOVE_TRAILING_SPACES,

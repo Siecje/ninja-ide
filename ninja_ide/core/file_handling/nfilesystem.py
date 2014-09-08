@@ -50,10 +50,17 @@ class NVirtualFileSystem(QObject):
             qfsm.setNameFilters(pext)
             self.__projects[project_path] = project
             self.__check_files_for(project_path)
-            self.emit(SIGNAL("projectOpened(PyQt_PyObject)"), project)
+            self.emit(SIGNAL("projectOpened(QString)"), project_path)
         else:
             qfsm = self.__projects[project_path]
         return qfsm
+
+    def refresh_name_filters(self, project):
+        qfsm = project.model
+        if qfsm:
+            pext = ["*{0}".format(x) for x in project.extensions]
+            logger.debug(pext)
+            qfsm.setNameFilters(pext)
 
     def close_project(self, project_path):
         if project_path in self.__projects:
@@ -66,6 +73,7 @@ class NVirtualFileSystem(QObject):
             #This might not be needed just being extra cautious
             del self.__projects[project_path].model
             del self.__projects[project_path]
+            self.emit(SIGNAL("projectClosed(QString)"), project_path)
 
     def __check_files_for(self, project_path):
         project = self.__projects[project_path]
@@ -83,7 +91,8 @@ class NVirtualFileSystem(QObject):
             del self.__watchables[nfile_path]
 
     def __add_file(self, nfile):
-        self.connect(nfile, SIGNAL("fileClosing(QString)"), self.__closed_file)
+        self.connect(nfile, SIGNAL("fileClosing(QString, bool)"),
+                     self.__closed_file)
         existing_paths = sorted(list(self.__projects.keys()), reverse=True)
         self.__tree[nfile.file_path] = nfile
         for each_path in existing_paths:

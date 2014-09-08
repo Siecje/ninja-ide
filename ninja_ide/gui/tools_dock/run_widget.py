@@ -17,6 +17,7 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 
+import sys
 import time
 import re
 
@@ -31,7 +32,6 @@ from PyQt4.QtGui import QTextCursor
 from PyQt4.QtGui import QTextCharFormat
 from PyQt4.QtGui import QColor
 from PyQt4.QtGui import QBrush
-from PyQt4.QtGui import QFont
 from PyQt4.QtCore import Qt
 from PyQt4.QtCore import QProcess
 from PyQt4.QtCore import QProcessEnvironment
@@ -71,28 +71,32 @@ class RunWidget(QWidget):
         self._preExecScriptProc = QProcess(self)
         self._postExecScriptProc = QProcess(self)
         self.connect(self._proc, SIGNAL("readyReadStandardOutput()"),
-            self.output.refresh_output)
+                     self.output.refresh_output)
         self.connect(self._proc, SIGNAL("readyReadStandardError()"),
-            self.output.refresh_error)
+                     self.output.refresh_error)
         self.connect(self._proc, SIGNAL("finished(int, QProcess::ExitStatus)"),
-            self.finish_execution)
+                     self.finish_execution)
         self.connect(self._proc, SIGNAL("error(QProcess::ProcessError)"),
-            self.process_error)
+                     self.process_error)
         self.connect(self.input, SIGNAL("returnPressed()"), self.insert_input)
         self.connect(self._preExecScriptProc,
-            SIGNAL("finished(int, QProcess::ExitStatus)"),
-            self.__main_execution)
+                     SIGNAL("finished(int, QProcess::ExitStatus)"),
+                     self.__main_execution)
         self.connect(self._preExecScriptProc,
-            SIGNAL("readyReadStandardOutput()"), self.output.refresh_output)
+                     SIGNAL("readyReadStandardOutput()"),
+                     self.output.refresh_output)
         self.connect(self._preExecScriptProc,
-            SIGNAL("readyReadStandardError()"), self.output.refresh_error)
+                     SIGNAL("readyReadStandardError()"),
+                     self.output.refresh_error)
         self.connect(self._postExecScriptProc,
-            SIGNAL("finished(int, QProcess::ExitStatus)"),
-            self.__post_execution_message)
+                     SIGNAL("finished(int, QProcess::ExitStatus)"),
+                     self.__post_execution_message)
         self.connect(self._postExecScriptProc,
-            SIGNAL("readyReadStandardOutput()"), self.output.refresh_output)
+                     SIGNAL("readyReadStandardOutput()"),
+                     self.output.refresh_output)
         self.connect(self._postExecScriptProc,
-            SIGNAL("readyReadStandardError()"), self.output.refresh_error)
+                     SIGNAL("readyReadStandardError()"),
+                     self.output.refresh_error)
 
     def set_font(self, font):
         """Set the font for the output widget."""
@@ -110,10 +114,10 @@ class RunWidget(QWidget):
         font = settings.FONT
         format_.setFont(font)
         format_.setForeground(QBrush(QColor(resources.CUSTOM_SCHEME.get(
-            "error-underline", resources.COLOR_SCHEME["error-underline"]))))
+            "ErrorUnderline", resources.COLOR_SCHEME["ErrorUnderline"]))))
         if error == 0:
             self.output.textCursor().insertText(self.tr('Failed to start'),
-                format_)
+                                                format_)
         else:
             self.output.textCursor().insertText(
                 (self.tr('Error during execution, QProcess error: %d') % error),
@@ -130,12 +134,15 @@ class RunWidget(QWidget):
         self.output.textCursor().insertText('\n\n')
         if exitStatus == QProcess.NormalExit:
             format_.setForeground(QBrush(QColor(resources.CUSTOM_SCHEME.get(
-                "keyword", resources.COLOR_SCHEME["keyword"]))))
+                "Keyword", resources.COLOR_SCHEME["Keyword"]))))
             self.output.textCursor().insertText(
                 self.tr("Execution Successful!"), format_)
         else:
-            format_.setForeground(QBrush(QColor(resources.CUSTOM_SCHEME.get(
-               "error-underline", resources.COLOR_SCHEME["error-underline"]))))
+            format_.setForeground(
+                QBrush(QColor(
+                    resources.CUSTOM_SCHEME.get(
+                        "ErrorUnderline",
+                        resources.COLOR_SCHEME["ErrorUnderline"]))))
             self.output.textCursor().insertText(
                 self.tr("Execution Interrupted"), format_)
         self.output.textCursor().insertText('\n\n')
@@ -149,7 +156,7 @@ class RunWidget(QWidget):
         self.input.setText("")
 
     def start_process(self, fileName, pythonExec=False, PYTHONPATH=None,
-            programParams='', preExec='', postExec=''):
+                      programParams='', preExec='', postExec=''):
         """Prepare the output widget and start the process."""
         self.lblInput.show()
         self.input.show()
@@ -171,7 +178,7 @@ class RunWidget(QWidget):
             message = self.tr(
                 "Pre Execution Script Successfully executed.\n\n")
         self.output.setPlainText(message + 'Running: %s (%s)\n\n' %
-            (self.fileName, time.ctime()))
+                                 (self.fileName, time.ctime()))
         self.output.moveCursor(QTextCursor.Down)
         self.output.moveCursor(QTextCursor.Down)
         self.output.moveCursor(QTextCursor.Down)
@@ -195,16 +202,18 @@ class RunWidget(QWidget):
             for path in envpaths:
                 env.insert('PYTHONPATH', path)
         env.insert('PYTHONIOENCODING', 'utf-8')
+        env.insert('PYTHONPATH', ':'.join(sys.path))
         self._proc.setProcessEnvironment(env)
 
         self._proc.start(self.pythonExec, options + [self.fileName] +
-            [p.strip() for p in self.programParams.split(',') if p])
+                         [p.strip()
+                          for p in self.programParams.split(',') if p])
 
     def __pre_execution(self):
         """Execute a script before executing the project."""
         filePreExec = QFile(self.preExec)
         if filePreExec.exists() and \
-          bool(QFile.ExeUser & filePreExec.permissions()):
+                bool(QFile.ExeUser & filePreExec.permissions()):
             ext = file_manager.get_file_extension(self.preExec)
             if not self.pythonExec:
                 self.pythonExec = settings.PYTHON_PATH
@@ -221,14 +230,14 @@ class RunWidget(QWidget):
         """Execute a script after executing the project."""
         filePostExec = QFile(self.postExec)
         if filePostExec.exists() and \
-          bool(QFile.ExeUser & filePostExec.permissions()):
+                bool(QFile.ExeUser & filePostExec.permissions()):
             ext = file_manager.get_file_extension(self.postExec)
             if not self.pythonExec:
                 self.pythonExec = settings.PYTHON_PATH
             self.currentProcess = self._postExecScriptProc
             if ext == 'py':
                 self._postExecScriptProc.start(self.pythonExec,
-                    [self.postExec])
+                                               [self.postExec])
             else:
                 self._postExecScriptProc.start(self.postExec)
 
@@ -254,50 +263,46 @@ class OutputWidget(QPlainTextEdit):
         super(OutputWidget, self).__init__(parent)
         self._parent = parent
         self.setReadOnly(True)
-        self.maxValue = 0
-        self.actualValue = 0
         #traceback pattern
         self.patLink = re.compile(r'(\s)*File "(.*?)", line \d.+')
         #formats
         font = settings.FONT
         self.plain_format = QTextCharFormat()
         self.plain_format.setFont(font)
-        self.plain_format.setForeground(QBrush(QColor(
-            resources.CUSTOM_SCHEME.get("editor-text",
-            resources.COLOR_SCHEME["editor-text"]))))
+        self.plain_format.setForeground(
+            QBrush(QColor(resources.CUSTOM_SCHEME.get(
+                "Default", resources.COLOR_SCHEME["Default"]))))
         self.error_format = QTextCharFormat()
         self.error_format.setFont(font)
         self.error_format.setAnchor(True)
         self.error_format.setForeground(QColor(resources.CUSTOM_SCHEME.get(
-            "pep8-underline", resources.COLOR_SCHEME["pep8-underline"])))
+            "Pep8Underline", resources.COLOR_SCHEME["Pep8Underline"])))
         self.error_format.setBackground(QColor(resources.CUSTOM_SCHEME.get(
-            "error-underline", resources.COLOR_SCHEME["error-underline"])))
+            "ErrorUnderline", resources.COLOR_SCHEME["ErrorUnderline"])))
         self.error_format.setToolTip(self.tr("Click to show the source"))
         self.error_format2 = QTextCharFormat()
         self.error_format2.setAnchor(True)
         self.error_format2.setFont(font)
         self.error_format2.setForeground(
-            QBrush(QColor(resources.CUSTOM_SCHEME.get(
-            "error-underline", resources.COLOR_SCHEME["error-underline"]))))
+            QBrush(
+                QColor(resources.CUSTOM_SCHEME.get(
+                    "ErrorUnderline",
+                    resources.COLOR_SCHEME["ErrorUnderline"]))))
 
-        self.connect(self, SIGNAL("blockCountChanged(int)"), self._scroll_area)
+        self.connect(self, SIGNAL("blockCountChanged(int)"),
+                     lambda: self.moveCursor(QTextCursor.End))
 
         css = 'QPlainTextEdit {color: %s; background-color: %s;' \
             'selection-color: %s; selection-background-color: %s;}' \
             % (resources.CUSTOM_SCHEME.get('editor-text',
-            resources.COLOR_SCHEME['editor-text']),
-            resources.CUSTOM_SCHEME.get('editor-background',
-                resources.COLOR_SCHEME['editor-background']),
-            resources.CUSTOM_SCHEME.get('editor-selection-color',
-                resources.COLOR_SCHEME['editor-selection-color']),
-            resources.CUSTOM_SCHEME.get('editor-selection-background',
-                resources.COLOR_SCHEME['editor-selection-background']))
+               resources.COLOR_SCHEME['Default']),
+               resources.CUSTOM_SCHEME.get('EditorBackground',
+               resources.COLOR_SCHEME['EditorBackground']),
+               resources.CUSTOM_SCHEME.get('EditorSelectionColor',
+               resources.COLOR_SCHEME['EditorSelectionColor']),
+               resources.CUSTOM_SCHEME.get('EditorSelectionBackground',
+               resources.COLOR_SCHEME['EditorSelectionBackground']))
         self.setStyleSheet(css)
-
-    def _scroll_area(self):
-        """When new text is added to the widget, move the scroll to the end."""
-        if self.actualValue == self.maxValue:
-            self.moveCursor(QTextCursor.End)
 
     def mousePressEvent(self, event):
         """
@@ -312,9 +317,6 @@ class OutputWidget(QPlainTextEdit):
         #we should decode the bytes!
         currentProcess = self._parent.currentProcess
         text = currentProcess.readAllStandardOutput().data().decode('utf8')
-        verticalScroll = self.verticalScrollBar()
-        self.actualValue = verticalScroll.value()
-        self.maxValue = verticalScroll.maximum()
         self.textCursor().insertText(text, self.plain_format)
 
     def refresh_error(self):
@@ -324,9 +326,6 @@ class OutputWidget(QPlainTextEdit):
         currentProcess = self._parent.currentProcess
         text = currentProcess.readAllStandardError().data().decode('utf8')
         text_lines = text.split('\n')
-        verticalScroll = self.verticalScrollBar()
-        self.actualValue = verticalScroll.value()
-        self.maxValue = verticalScroll.maximum()
         for t in text_lines:
             cursor.insertBlock()
             if self.patLink.match(t):
@@ -342,9 +341,7 @@ class OutputWidget(QPlainTextEdit):
             file_path, lineno = self._parse_traceback(text)
             main_container = IDE.get_service('main_container')
             if main_container:
-                main_container.open_file(file_path,
-                    cursorPosition=int(lineno) - 1,
-                    positionIsLineNumber=True)
+                main_container.open_file(file_path, line=int(lineno) - 1)
 
     def _parse_traceback(self, text):
         """
@@ -370,6 +367,6 @@ class OutputWidget(QPlainTextEdit):
         # This is a hack because if we leave the widget text empty
         # it throw a violent segmentation fault in start_process
         self.connect(cleanAction, SIGNAL("triggered()"),
-            lambda: self.setPlainText('\n\n'))
+                     lambda: self.setPlainText('\n\n'))
 
         popup_menu.exec_(event.globalPos())
